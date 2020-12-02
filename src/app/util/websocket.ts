@@ -26,7 +26,7 @@ export abstract class Websocket {
   // params for reconnecting websocket
   private retryMax = 36
   private retryCount = 0
-  private retryInterval = 5000 // 5 seconds
+  private retryInterval = 5000
 
   abstract load<U extends User>(user: U): void
   abstract getAction(response: Payload): any
@@ -108,26 +108,6 @@ export abstract class Websocket {
   }
 
   private actionRegex = /(ADDED|UPDATED|DELETED)_(.*)/
-
-  // enum Entities {
-  //   USER = 'User'
-  // }
-
-  //import * as userActions from '../actions/user'
-  // {
-  //   const [payload, _type] = [response.payload, response.type]
-  //   const action = this.getActionType(_type)
-
-  //   if (_type.endsWith(Entities.USER)) {
-  //     const model = User.apply(payload)
-  //     switch (action) {
-  //       case 'ADDED':
-  //         return new userActions.Added(model)
-  //       case 'UPDATED':
-  //         return new userActions.Updated(model)
-  //     }
-  //   }
-  // }
 
   protected getActionType(_type: string): ActionType {
     let action: ActionType

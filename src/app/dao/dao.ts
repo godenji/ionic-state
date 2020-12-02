@@ -45,18 +45,6 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     return new HttpResponse({ body: x, status: 200 })
   }
 
-  private withToken() {
-    const headers = new HttpHeaders().set('Content-Type', 'application/json')
-    console.log(
-      JSON.stringify(
-        this.api.token ? headers.set('X-Auth-Token', this.api.token) : headers
-      )
-    )
-    return this.api.token
-      ? headers.set('X-Auth-Token', this.api.token)
-      : headers
-  }
-
   withDefaultHeaders(): {
     headers?: { [header: string]: string | string[] }
     observe: 'response'
