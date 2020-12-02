@@ -4,6 +4,22 @@
   "author": "N.S. Cutler",
   "description": "Provides utilities for working with state in Ionic applications",
   "homepage": "https://github.com/godenji/ionic-state",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/godenji/ionic-state.git"
+  },
+  "bugs": {
+    "url": "https://github.com/godenji/ionic-state/issues"
+  },
+  "keywords": [
+    "ionic",
+    "angular",
+    "ngrx",
+    "state",
+    "management",
+    "utility"
+  ],
   "main": "./dist/src/app/index.js",
   "files": [
     "dist"
