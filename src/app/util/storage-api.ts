@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http'
-import { Storage } from '@ionic/storage'
+import { Storage } from '@ionic/storage-angular'
 
 export class StorageApi {
   token: string

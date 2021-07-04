@@ -6,7 +6,6 @@ import { map, flatMap, tap, take } from 'rxjs/operators'
 import { DaoContract } from './dao-contract'
 import { Id } from '../model/key/id'
 import { Entity } from '../model/entity'
-import { List } from 'immutable'
 import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 import { QueryString } from '../util/query-string'
@@ -71,16 +70,16 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
   }
 
-  createMany(xs: List<T>) {
+  createMany(xs: T[]) {
     if (this.isOnline()) {
       return this.combineMany(
         this.api.remote.post<T[]>(
           `${this.API_URL}/many`,
-          xs.toArray(),
+          xs,
           this.withDefaultHeaders()
         )
       )
-    } else return this.combineMany(of(this.responseMany(xs.toArray())))
+    } else return this.combineMany(of(this.responseMany(xs)))
   }
 
   update(t: T) {
@@ -97,10 +96,10 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
   }
 
-  updateMany(xs: List<PatchUpdate>) {
+  updateMany(xs: PatchUpdate[]) {
     if (this.isOnline()) {
       return this.api.remote
-        .patch<List<PatchUpdate>>(this.API_URL, xs, this.withDefaultHeaders())
+        .patch<PatchUpdate[]>(this.API_URL, xs, this.withDefaultHeaders())
         .pipe(tap(x => this.patchLocal(x.body)))
     } else {
       this.patchLocal(xs)
@@ -108,7 +107,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
   }
 
-  private patchLocal(batch: List<PatchUpdate>) {
+  private patchLocal(batch: PatchUpdate[]) {
     const updated$ = this.getManyLocal('deserialize').pipe(
       map(x => {
         let entities: T[] = []

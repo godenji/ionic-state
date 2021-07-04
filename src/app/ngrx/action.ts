@@ -1,7 +1,6 @@
 import { Action } from '@ngrx/store'
 import { Entity } from '../model/entity'
 import { Id } from '../model/key/id'
-import { List } from 'immutable'
 import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 
@@ -15,9 +14,9 @@ export interface EntityActions<T extends Entity, Key extends Id> {
   loadingOne(id: Key): NgrxAction
   select(t: T): NgrxAction<T>
   create(t: T): NgrxAction<T>
-  createMany(t: List<T>): NgrxAction<List<T>>
+  createMany(t: T[]): NgrxAction<T[]>
   update(t: T): NgrxAction<T>
-  updateMany(t: List<PatchUpdate>): NgrxAction<List<PatchUpdate>>
+  updateMany(t: PatchUpdate[]): NgrxAction<PatchUpdate[]>
   delete(t: T): NgrxAction<T>
   deleteMany(t: T[]): NgrxAction<T[]>
 }

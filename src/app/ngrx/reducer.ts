@@ -2,7 +2,6 @@ import { EntityAdapter } from '@ngrx/entity'
 import { EntityState, defaultState } from './state'
 import { Entity } from '../model/entity'
 import { Id } from '../model/key/id'
-import { List } from 'immutable'
 import { PatchUpdate } from '../model/patch-update'
 import { PaginatedResult } from '../util/paginated-result'
 
@@ -83,11 +82,8 @@ export class EntityReducer<
     return this.adapter.upsertOne(payload, state)
   }
 
-  addedMany(payload: List<T>) {
-    return this.adapter.addMany(
-      payload.toArray(),
-      this.addedState(payload.size)
-    )
+  addedMany(payload: T[]) {
+    return this.adapter.addMany(payload, this.addedState(payload?.length))
   }
 
   private addedState(count: number) {
@@ -125,7 +121,7 @@ export class EntityReducer<
     )
   }
 
-  updatedMany(payload: List<PatchUpdate>) {
+  updatedMany(payload: PatchUpdate[]) {
     let entities: T[] = []
     this.adapter
       .getSelectors()

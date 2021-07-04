@@ -1,7 +1,6 @@
 import { Action, Store } from '@ngrx/store'
 import { Observable, combineLatest } from 'rxjs'
 import { map, filter, take } from 'rxjs/operators'
-import { List } from 'immutable'
 import { Entity } from '../model/entity'
 import { EntityState } from './state'
 import { EntityActions } from './action'
@@ -22,9 +21,9 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
   deleting$: Observable<boolean>
   deleted$: Observable<boolean>
   selected$: Observable<T>
-  entities$: Observable<List<T>>
+  entities$: Observable<T[]>
   paginated$: Observable<PaginatedResult<T>>
-  success$: Observable<List<T>>
+  success$: Observable<T[]>
   error$: Observable<any>
 
   constructor(
@@ -32,7 +31,7 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
     protected store$: Observable<EntityState<T, Key>>,
     protected selectAll: (state: EntityState<T, Key>) => T[]
   ) {
-    this.entities$ = store$.pipe(map(x => List(selectAll(x))))
+    this.entities$ = store$.pipe(map(x => selectAll(x)))
     this.loading$ = store$.pipe(map(x => x.isLoading))
     this.loaded$ = store$.pipe(map(x => x.isLoaded))
     this.adding$ = store$.pipe(map(x => x.isAdding))
@@ -48,7 +47,7 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
       store$.pipe(map(x => x.currentPage))
     ).pipe(
       map(([xs, total, page]) => {
-        return { payload: xs.toArray(), totalRecords: total, currentPage: page }
+        return { payload: xs, totalRecords: total, currentPage: page }
       })
     )
     this.success$ = combineLatest(
@@ -61,10 +60,10 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
       filter(
         ([entities, selected, a, b, deleted]) =>
           (a || b || deleted) &&
-          (Boolean(selected) || deleted || entities.size > 0)
+          (Boolean(selected) || deleted || entities?.length > 0)
       ),
       map(([entities, selected, , ,]) => {
-        if (selected) return List([selected])
+        if (selected) return [selected]
         else return entities
       })
     )
@@ -78,8 +77,8 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
 
   onSuccess(op: (t: T | T[]) => void) {
     this.success$.pipe(take(1)).subscribe(xs => {
-      if (xs.size === 1) op(xs.first())
-      else op(xs.toArray())
+      if (xs?.length === 1) op(xs[0])
+      else op(xs)
     })
   }
 
@@ -113,7 +112,7 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
     this.dispatch(this.entity.create(x))
   }
 
-  createMany(xs: List<T>) {
+  createMany(xs: T[]) {
     this.dispatch(this.entity.createMany(xs))
   }
 
@@ -121,7 +120,7 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
     this.dispatch(this.entity.update(x))
   }
 
-  updateMany(xs: List<PatchUpdate>) {
+  updateMany(xs: PatchUpdate[]) {
     this.dispatch(this.entity.updateMany(xs))
   }
 
@@ -137,7 +136,7 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
     return this.entities$.pipe(map(xs => xs && xs.find(t => cond(t))))
   }
 
-  findAllBy(cond: (u: T) => boolean): Observable<List<T>> {
+  findAllBy(cond: (u: T) => boolean): Observable<T[]> {
     return this.entities$.pipe(map(xs => xs && xs.filter(t => cond(t))))
   }
 }
