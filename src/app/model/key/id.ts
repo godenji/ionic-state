@@ -1,14 +1,9 @@
-export abstract class Id<T = Id.Default> {
+export abstract class Id {
   static key = 'id'
 
-  constructor(readonly value: T) {}
+  constructor(readonly value: string | number) {}
 
   toString(): string {
     return `${this.value}`
   }
-}
-
-namespace Id {
-  export type UUID = string
-  export type Default = UUID
 }
