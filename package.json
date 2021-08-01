@@ -80,10 +80,5 @@
     "uuid": "8.3.2",
     "zone.js": "0.11.4"
   },
-  "browserslist": [
-    "last 2 versions",
-    "not ie <= 10",
-    "not ie_mob <= 10"
-  ],
   "dependencies": {}
 }
