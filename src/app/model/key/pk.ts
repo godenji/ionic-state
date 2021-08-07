@@ -1,5 +1,1 @@
-import { Id } from './id'
-
-export class Pk extends Id {
-  private nominal
-}
+export type Pk = (string | number) & { readonly __: unique symbol }

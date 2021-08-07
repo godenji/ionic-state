@@ -130,7 +130,7 @@ export class EntityReducer<
       .forEach(entity => {
         const partial = payload.find(p => p.id === entity.id)
         if (partial) {
-          entities.push(entity.copy({ ...partial.params }))
+          entities.push(Entity.copy(entity, { ...partial.params }))
         }
       })
     if (entities && entities.length) {

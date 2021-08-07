@@ -12,7 +12,7 @@ export interface EntityState<T extends Entity, Key extends Id>
   isUpdated: boolean
   isDeleting: boolean
   isDeleted: boolean
-  selectedId: any //Key
+  selectedId: Key
   selected: T
   error: any
   totalRecords: number

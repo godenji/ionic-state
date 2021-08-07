@@ -1,5 +1,5 @@
 import { StorageApi } from '../util/storage-api'
-import { HttpResponse, HttpHeaders } from '@angular/common/http'
+import { HttpResponse } from '@angular/common/http'
 import { NetworkService } from '../util/network'
 import { combineLatest, Observable, of, from } from 'rxjs'
 import { map, flatMap, tap, take } from 'rxjs/operators'
@@ -64,7 +64,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         )
     } else {
       // generate uuid for offline entity if id not set
-      const entity: T = !t.id ? t.copy({ id: uuid() }) : t
+      const entity: T = !t.id ? Entity.copy(t, { id: uuid() }) : t
       this.setLocal(entity)
       return this.response(entity)
     }
@@ -113,7 +113,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         let entities: T[] = []
         x.body.forEach(x => {
           const p = batch.find(p => p.id === x.id)
-          entities.push(!p ? x : x.copy({ ...p.params }))
+          entities.push(!p ? x : Entity.copy(x, { ...p.params }))
         })
         return entities
       })
@@ -141,7 +141,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
   deleteMany(xs: T[]) {
     if (this.isOnline()) {
-      const key = Id.key
+      const key = Entity.key
       // generate querystring key list: "foo?id=..&id=..&id=.."
       const qstring = `?${key}=` + xs.map(x => x.id).join(`&${key}=`)
       return this.api.remote
