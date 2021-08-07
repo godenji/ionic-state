@@ -1,3 +1,9 @@
+## 3.0.0 (2021-08-07)
+
+### BREAKING CHANGES
+
+Migrated away from class based models and ids.
+
 ## 2.0.0 (2021-07-04)
 
 ### BREAKING CHANGES
