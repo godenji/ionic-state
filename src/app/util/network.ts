@@ -6,8 +6,8 @@ import { Network } from '@ionic-native/network/ngx'
 @Injectable({ providedIn: 'root' })
 export class NetworkService {
   isNative: boolean
-  isOfflineMode: boolean = false
-  isOfflineMode$: BehaviorSubject<boolean> = new BehaviorSubject<boolean>(false)
+  isOfflineMode = false
+  isOfflineMode$: BehaviorSubject<boolean> = new BehaviorSubject(false)
 
   constructor(private platform: Platform, public device: Network) {
     this.isNative = this.platform.is('hybrid')
@@ -15,15 +15,15 @@ export class NetworkService {
   }
 
   isOnline(): boolean {
-    if (this.isNative && this.device.type) {
-      return this.device.type !== 'none'
-    } else return navigator.onLine
+    return this.isNative && this.device.type
+      ? this.device.type !== 'none'
+      : navigator.onLine
   }
 
   isOffline(): boolean {
-    if (this.isNative && this.device.type) {
-      return this.device.type === 'none'
-    } else return !navigator.onLine
+    return this.isNative && this.device.type
+      ? this.device.type === 'none'
+      : !navigator.onLine
   }
 
   /**
