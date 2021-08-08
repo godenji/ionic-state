@@ -3,7 +3,7 @@ import { Id } from './key/id'
 /**
  * model base class
  */
-export abstract class Entity {
+export interface Entity {
   /**
    * entity id
    */
