@@ -10,7 +10,7 @@ export class NetworkService {
   isOfflineMode$: BehaviorSubject<boolean> = new BehaviorSubject<boolean>(false)
 
   constructor(private platform: Platform, public device: Network) {
-    this.isNative = this.platform.is('cordova')
+    this.isNative = this.platform.is('hybrid')
     this.isOfflineMode$.subscribe(x => (this.isOfflineMode = x))
   }
 
