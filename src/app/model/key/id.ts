@@ -1,4 +1,4 @@
-export type Id = string | number
+export type Id = string | number | bigint
 
 /**
  * Id constructor
@@ -7,7 +7,7 @@ export type Id = string | number
  *
  * given a value type
  *
- * `Pk = (string | number) & { readonly __: unique symbol }`
+ * `Pk = (string | number | bigint) & { readonly __: unique symbol }`
  *
  * an instance can be created with `const id = Id<Pk>(2)` (or omit type parameter
  * if the type can be inferred).

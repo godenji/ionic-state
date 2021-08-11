@@ -1,1 +1,3 @@
-export type Pk = (string | number) & { readonly __: unique symbol }
+import { Id } from './id'
+
+export type Pk = Id & { readonly __: unique symbol }
