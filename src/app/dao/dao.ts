@@ -12,12 +12,14 @@ import { QueryString } from '../util/query-string'
 import { PaginatedResult } from '../util/paginated-result'
 import { v4 as uuid } from 'uuid'
 
+export type KeyType = 'uuid' | 'int' | 'long'
+
 export abstract class Dao<T extends Entity> implements DaoContract<T> {
   baseApiUrl: string
   readonly API_URL: string
 
   /** define remote database entity column type (for offline id generation) */
-  abstract keyType: 'uuid' | 'int' | 'long'
+  abstract keyType: KeyType
 
   abstract deserialize(response: HttpResponse<T>): HttpResponse<T>
   abstract deserializeMany(response: HttpResponse<T[]>): HttpResponse<T[]>
