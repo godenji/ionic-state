@@ -1,3 +1,7 @@
+## 3.0.1 (2021-08-10)
+
+require entity key type (uuid | int | long) for offline id generation
+
 ## 3.0.0 (2021-08-07)
 
 ### BREAKING CHANGES
