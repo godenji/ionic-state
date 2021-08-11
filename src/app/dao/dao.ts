@@ -16,6 +16,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   baseApiUrl: string
   readonly API_URL: string
 
+  /** define remote database entity column type (for offline id generation) */
+  abstract keyType: 'uuid' | 'int' | 'long'
+
   abstract deserialize(response: HttpResponse<T>): HttpResponse<T>
   abstract deserializeMany(response: HttpResponse<T[]>): HttpResponse<T[]>
 
@@ -63,8 +66,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
           map(this.deserialize)
         )
     } else {
-      // generate uuid for offline entity if id not set
-      const entity: T = !t.id ? Entity.copy(t, { id: uuid() }) : t
+      const entity: T = !t.id ? Entity.copy(t, { id: this.generateId() }) : t
       this.setLocal(entity)
       return this.response(entity)
     }
@@ -79,7 +81,35 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
           this.withDefaultHeaders()
         )
       )
-    } else return this.combineMany(of(this.responseMany(xs)))
+    } else {
+      if (!xs.every(x => x?.id)) {
+        xs = xs.map(x => {
+          if (!x?.id) x.id = this.generateId()
+          return x
+        })
+      }
+      return this.combineMany(of(this.responseMany(xs)))
+    }
+  }
+
+  // generates offline entity id
+  private generateId(): Id {
+    switch (this.keyType) {
+      case 'uuid':
+        return uuid()
+      case 'int':
+        let n = 0
+        // require n > max unsigned int 2^32
+        // why? remote database column `int` value can be no greater than 2^32,
+        // while chance of collision with offline generated ids is extremely small
+        // (e.g. if # of generated ids = 100k collision probability is .0001%)
+        while (n < 4294967295) {
+          n = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+        }
+        return n
+      case 'long':
+        return BigInt(Math.pow(2, 63) * Math.random())
+    }
   }
 
   update(t: T) {
