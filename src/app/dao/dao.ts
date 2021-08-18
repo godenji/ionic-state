@@ -21,9 +21,6 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   /** define remote database entity column type (for offline id generation) */
   abstract keyType: KeyType
 
-  abstract deserialize(response: HttpResponse<T>): HttpResponse<T>
-  abstract deserializeMany(response: HttpResponse<T[]>): HttpResponse<T[]>
-
   private qs = new QueryString()
 
   constructor(
@@ -39,14 +36,12 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     return !this.network.isOfflineMode && this.network.isOnline()
   }
 
-  private response(t: T, deserialize?: 'deserialize') {
-    return deserialize
-      ? of(this.deserialize(new HttpResponse({ body: t, status: 200 })))
-      : of(new HttpResponse({ body: t, status: 200 }))
+  private response(t: T) {
+    return of(new HttpResponse({ body: t, status: 200 }))
   }
 
-  private responseMany(x: T[]) {
-    return new HttpResponse({ body: x, status: 200 })
+  private responseMany(xs: T[]) {
+    return new HttpResponse({ body: xs, status: 200 })
   }
 
   withDefaultHeaders(): {
@@ -63,10 +58,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     if (this.isOnline()) {
       return this.api.remote
         .post<T>(this.API_URL, t, this.withDefaultHeaders())
-        .pipe(
-          tap(x => this.setLocal(x.body)),
-          map(this.deserialize)
-        )
+        .pipe(tap(x => this.setLocal(x.body)))
     } else {
       const entity = !t.id ? Object.assign(t, { id: this.generateId() }) : t
       this.setLocal(entity)
@@ -118,10 +110,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     if (this.isOnline()) {
       return this.api.remote
         .put<T>(`${this.API_URL}/${t.id}`, t, this.withDefaultHeaders())
-        .pipe(
-          tap(x => this.setLocal(x.body)),
-          map(this.deserialize)
-        )
+        .pipe(tap(x => this.setLocal(x.body)))
     } else {
       this.setLocal(t)
       return this.response(t)
@@ -140,7 +129,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   private patchLocal(batch: PatchUpdate[]) {
-    const updated$ = this.getManyLocal('deserialize').pipe(
+    const updated$ = this.getManyLocal().pipe(
       map(x => {
         let entities: T[] = []
         x.body.forEach(x => {
@@ -161,10 +150,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   delete(t: T) {
     if (this.isOnline()) {
       const options = { ...this.withDefaultHeaders(), body: t }
-      return this.api.remote.delete<T>(`${this.API_URL}/${t.id}`, options).pipe(
-        tap(x => this.unsetLocal(x.body)),
-        map(this.deserialize)
-      )
+      return this.api.remote
+        .delete<T>(`${this.API_URL}/${t.id}`, options)
+        .pipe(tap(x => this.unsetLocal(x.body)))
     } else {
       this.unsetLocal(t)
       return this.response(t)
@@ -189,37 +177,35 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   findById<Key extends Id>(id: Key) {
-    if (this.isOnline()) {
-      return this.api.remote
-        .get<T>(`${this.API_URL}/${id}`, this.withDefaultHeaders())
-        .pipe(
-          flatMap(x => (x.body ? of(x) : this.getLocal(id))),
-          tap(x => this.setLocal(x.body)),
-          map(this.deserialize)
-        )
-    } else return this.getLocal(id)
+    if (!this.isOnline()) return this.getLocal(id)
+    return this.api.remote
+      .get<T>(`${this.API_URL}/${id}`, this.withDefaultHeaders())
+      .pipe(
+        flatMap(x => (x.body ? of(x) : this.getLocal(id))),
+        tap(x => this.setLocal(x.body))
+      )
   }
 
   findAll(q?: QueryParams) {
-    if (this.isOnline()) {
-      let qs = this.qs.build(q)
-      if (qs != '') qs = `?${qs}`
-      return this.api.remote
-        .get<PaginatedResult<T>>(
-          `${this.API_URL}${qs}`,
-          this.withDefaultHeaders()
-        )
-        .pipe(
-          flatMap(pr =>
-            this.combineMany(of(this.responseMany(pr.body.payload))).pipe(
-              map(x =>
-                this.paginate(x, pr.body.totalRecords, pr.body.currentPage)
-              )
+    if (!this.isOnline()) {
+      return this.getManyLocal().pipe(map(x => this.paginate(x)))
+    }
+    let qs = this.qs.build(q)
+    if (qs != '') qs = `?${qs}`
+    return this.api.remote
+      .get<PaginatedResult<T>>(
+        `${this.API_URL}${qs}`,
+        this.withDefaultHeaders()
+      )
+      .pipe(
+        flatMap(pr =>
+          this.combineMany(of(this.responseMany(pr.body.payload))).pipe(
+            map(x =>
+              this.paginate(x, pr.body.totalRecords, pr.body.currentPage)
             )
           )
         )
-    } else
-      return this.getManyLocal('deserialize').pipe(map(x => this.paginate(x)))
+      )
   }
 
   protected paginate(
@@ -250,26 +236,22 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       tap(x => {
         this.api.local.set(this.API_URL, JSON.stringify(x.body))
         x.body.forEach(x => this.setLocal(x, false))
-      }),
-      map(this.deserializeMany)
+      })
     )
   }
 
-  private getManyLocal(
-    deserialize?: 'deserialize'
-  ): Observable<HttpResponse<T[]>> {
+  private getManyLocal(): Observable<HttpResponse<T[]>> {
     return from(this.api.local.get(this.API_URL)).pipe(
       map(xs => {
         const data = !!xs ? (JSON.parse(xs) as T[]) : []
-        const resp = this.responseMany(data)
-        return !!xs && deserialize ? this.deserializeMany(resp) : resp
+        return this.responseMany(data)
       })
     )
   }
 
   private getLocal<Key extends Id>(key: Key): Observable<HttpResponse<T>> {
     return from(this.api.local.get(`${this.API_URL}/${key}`)).pipe(
-      flatMap(x => this.response(JSON.parse(x), 'deserialize'))
+      flatMap(x => this.response(JSON.parse(x)))
     )
   }
 
