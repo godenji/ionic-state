@@ -15,6 +15,6 @@ export type Id = string | number | bigint
  * @param value primitive value
  * @returns T wrapped type
  */
-export function Id<T extends Id>(value: Id): T {
-  return value as T
+export function Id<T extends Id = never, U extends T = T>(value: Id): U {
+  return value as U
 }
