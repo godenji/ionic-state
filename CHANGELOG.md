@@ -1,3 +1,7 @@
+## 3.0.6 (2021-09-07)
+
+added ngrx selector utility class
+
 ## 3.0.1 (2021-08-10)
 
 require entity key type (uuid | int | long) for offline id generation
