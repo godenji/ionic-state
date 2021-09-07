@@ -31,10 +31,11 @@ export class EntityReducer<
   }
 
   loading() {
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       isLoading: true
-    })
+    }
   }
 
   loaded(x: PaginatedResult<T>) {
@@ -42,21 +43,21 @@ export class EntityReducer<
     if (x.totalRecords > this.state.totalRecords) {
       this.totalRecords = x.totalRecords
     }
-    const state = Object.assign({}, this.state, {
+    return this.adapter.upsertMany(x.payload, {
+      ...this.state,
       ...this.getDefaultState(),
       isLoaded: true
     })
-    return this.adapter.upsertMany(x.payload, state)
   }
 
   loadedOne(payload: T) {
-    const state = Object.assign({}, this.state, {
+    return this.adapter.upsertOne(payload, {
+      ...this.state,
       ...this.getDefaultState(),
       isLoaded: true,
       selected: payload,
       selectedId: payload.id
     })
-    return this.adapter.upsertOne(payload, state)
   }
 
   add() {
@@ -68,18 +69,19 @@ export class EntityReducer<
   }
 
   private setAdding() {
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       isAdding: true
-    })
+    }
   }
 
   added(payload: T) {
-    const state = Object.assign({}, this.addedState(1), {
+    return this.adapter.upsertOne(payload, {
+      ...this.addedState(1),
       selected: payload,
       selectedId: payload.id
     })
-    return this.adapter.upsertOne(payload, state)
   }
 
   addedMany(payload: T[]) {
@@ -88,10 +90,11 @@ export class EntityReducer<
 
   private addedState(count: number) {
     this.setTotalRecords('add', count)
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       isAdded: true
-    })
+    }
   }
 
   update() {
@@ -103,21 +106,23 @@ export class EntityReducer<
   }
 
   private setUpdating() {
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       isUpdating: true
-    })
+    }
   }
 
   updated(payload: T) {
     return this.adapter.updateOne(
       { id: `${payload.id}`, changes: payload },
-      Object.assign({}, this.state, {
+      {
+        ...this.state,
         ...this.getDefaultState(),
         selected: payload,
         selectedId: payload.id,
         isUpdated: true
-      })
+      }
     )
   }
 
@@ -126,24 +131,24 @@ export class EntityReducer<
     this.adapter
       .getSelectors()
       .selectAll(this.state)
-      .map(x => this.serialize(x))
       .forEach(entity => {
         const partial = payload.find(p => p.id === entity.id)
         if (partial) {
-          entities.push(Object.assign(entity, { ...partial.params }))
+          entities.push({ ...entity, ...partial.params })
         }
       })
-    if (entities && entities.length) {
-      return this.adapter.updateMany(
-        entities.map(x => {
-          return { id: `${x.id}`, changes: x }
-        }),
-        Object.assign({}, this.state, {
-          ...this.getDefaultState(),
-          isUpdated: true
-        })
-      )
-    } else return this.state
+
+    if (!entities.length) return this.state
+    return this.adapter.updateMany(
+      entities.map(x => {
+        return { id: `${x.id}`, changes: x }
+      }),
+      {
+        ...this.state,
+        ...this.getDefaultState(),
+        isUpdated: true
+      }
+    )
   }
 
   delete() {
@@ -155,44 +160,52 @@ export class EntityReducer<
   }
 
   private setDeleting() {
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       isDeleting: true
-    })
+    }
   }
 
   deleted(payload: T) {
-    const state = this.deletedState(this.state, 1)
-    return this.adapter.removeOne(`${payload.id}`, state)
+    return this.adapter.removeOne(
+      `${payload.id}`,
+      this.deletedState(this.state, 1)
+    )
   }
 
   deletedMany(payload: T[]) {
-    const state = this.deletedState(this.state, payload.length)
     const ids = payload.map(x => `${x.id}`)
-    return this.adapter.removeMany(ids, state)
+    return this.adapter.removeMany(
+      ids,
+      this.deletedState(this.state, payload?.length)
+    )
   }
 
   private deletedState(state: S, count: number) {
     this.setTotalRecords('minus', count)
-    return Object.assign({}, state, {
+    return {
+      ...state,
       ...this.getDefaultState(),
       isDeleted: true
-    })
+    }
   }
 
   selected(payload?: T) {
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       selected: payload,
       selectedId: payload ? payload.id : null
-    })
+    }
   }
 
   failed(payload: Error) {
-    return Object.assign({}, this.state, {
+    return {
+      ...this.state,
       ...this.getDefaultState(),
       error: payload.message
-    })
+    }
   }
 
   private setTotalRecords(op: 'add' | 'minus', count: number): void {

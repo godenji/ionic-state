@@ -60,7 +60,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         .post<T>(this.API_URL, t, this.withDefaultHeaders())
         .pipe(tap(x => this.setLocal(x.body)))
     } else {
-      const entity = !t.id ? Object.assign(t, { id: this.generateId() }) : t
+      const entity = !t.id ? { ...t, id: this.generateId() } : t
       this.setLocal(entity)
       return this.response(entity)
     }
@@ -134,7 +134,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         let entities: T[] = []
         x.body.forEach(x => {
           const p = batch.find(p => p.id === x.id)
-          entities.push(!p ? x : Object.assign(x, { ...p.params }))
+          entities.push(!p ? x : { ...x, ...p.params })
         })
         return entities
       })
