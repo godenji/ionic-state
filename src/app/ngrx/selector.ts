@@ -26,7 +26,7 @@ export class Selector<
     readonly selector: Selectors<T, Key, E>
   ) {}
 
-  private feature = createFeatureSelector<E>(this.featureKey)
+  feature = createFeatureSelector<E>(this.featureKey)
 
   all = createSelector(this.feature, this.selector.selectAll)
   map = createSelector(this.feature, this.selector.selectEntities)
