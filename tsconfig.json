@@ -25,7 +25,8 @@
     "typeRoots": [
       "node_modules/@types"
     ],
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
   },
   "files": [
     "./src/app/index.ts"
