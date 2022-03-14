@@ -57,41 +57,51 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   create(t: T) {
     if (this.isOnline()) {
       return this.api.remote
-        .post<T>(this.API_URL, t, this.withDefaultHeaders())
+        .post<T>(this.API_URL, this.forCreate(t, 'online'), this.withDefaultHeaders())
         .pipe(tap(x => this.setLocal(x.body)))
     } else {
-      const entity = !t.id ? { ...t, id: this.generateId() } : t
+      const entity = this.forCreate(t, 'offline') as T
       this.setLocal(entity)
       return this.response(entity)
     }
   }
 
   createMany(xs: T[]) {
-    if (this.isOnline()) {
+    if (this.isOnline())
       return this.combineMany(
         this.api.remote.post<T[]>(
           `${this.API_URL}/many`,
-          xs,
+          this.forCreate(xs, 'online'),
           this.withDefaultHeaders()
         )
       )
-    } else {
-      if (!xs.every(x => x?.id)) {
-        xs = xs.map(x => {
-          if (!x?.id) x.id = this.generateId()
+    else
+      return this.combineMany(
+        of(this.responseMany(this.forCreate(xs, 'offline') as T[]))
+      )
+  }
+
+  private forCreate(x: T | T[], status: 'online' | 'offline'): T | T[] {
+    if (!(x instanceof Array)) return !x.id ? { ...x, id: this.generateId(status) } : x
+    else {
+      if (!x.every(x => x?.id)) {
+        x = x.map(x => {
+          if (!x?.id) x.id = this.generateId(status)
           return x
         })
       }
-      return this.combineMany(of(this.responseMany(xs)))
+      return x
     }
   }
 
-  // generates offline entity id
-  private generateId(): Id {
+  // generates entity id
+  private generateId(status: 'online' | 'offline'): Id {
     switch (this.keyType) {
       case 'uuid':
         return uuid()
       case 'int':
+        if (status === 'online') return 0
+
         let n = 0
         // require n > max unsigned int 2^32
         // why? remote database column `int` value can be no greater than 2^32,
@@ -102,7 +112,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         }
         return n
       case 'long':
-        return BigInt(Math.pow(2, 63) * Math.random())
+        return status === 'online' ? 0 : BigInt(Math.pow(2, 63) * Math.random())
     }
   }
 
