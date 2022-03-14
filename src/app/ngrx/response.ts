@@ -2,8 +2,7 @@ import { Observable, of } from 'rxjs'
 import { NgrxAction } from './action'
 
 interface JsonError {
-  path: string
-  errors: [string]
+  msg: string
 }
 
 export abstract class ResponseHandler {
@@ -15,13 +14,20 @@ export abstract class ResponseHandler {
 
   private parseError(e: any) {
     let msg: string = ''
-    if (e) {
-      if (typeof e === 'string') msg = e
-      else if (e instanceof Array) {
-        e.map(x => x as JsonError).forEach(
-          x => (msg += `${x.path}: ${x.errors[0]}`)
-        )
-      } else msg = e.toString()
+    switch (typeof e) {
+      case 'string': msg = e; break
+      case 'object':
+        Object.keys(e).forEach(k => {
+          const entry = e[k]
+          if (entry instanceof Array) {
+            entry.map(x => x as JsonError).forEach(
+              x => {
+                const sep = msg === '' ? '' : '; '
+                return (msg += `${sep}${k.replace('obj.', '')}: ${x.msg}`)
+              }
+            )
+          } else msg = entry.toString()
+        })
     }
     return msg === '' ? null : msg
   }
