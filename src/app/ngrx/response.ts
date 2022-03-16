@@ -5,6 +5,9 @@ interface JsonError {
   msg: string
 }
 
+/**
+ * @deprecated. Define own handler in client code
+ */
 export abstract class ResponseHandler {
   constructor(private error: (x: Error) => NgrxAction<Error>) {}
 
