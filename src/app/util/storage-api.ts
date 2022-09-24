@@ -17,6 +17,6 @@ export class StorageApi {
 
   async getToken() {
     const x = await this.local.get('auth')
-    return x ? JSON.parse(x) : null
+    return x ? JSON.parse(x)?.token : null
   }
 }
