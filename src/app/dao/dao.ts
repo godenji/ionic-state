@@ -2,7 +2,7 @@ import { StorageApi } from '../util/storage-api'
 import { HttpResponse } from '@angular/common/http'
 import { NetworkService } from '../util/network'
 import { combineLatest, Observable, of, from } from 'rxjs'
-import { map, flatMap, tap, take } from 'rxjs/operators'
+import { map, mergeMap, tap, take } from 'rxjs/operators'
 import { DaoContract } from './dao-contract'
 import { Id } from '../model/key/id'
 import { Entity } from '../model/entity'
@@ -33,7 +33,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   protected isOnline() {
-    return !this.network.isOfflineMode && this.network.isOnline()
+    return this.network.connected && !this.network.isOfflineMode
   }
 
   private response(t: T) {
@@ -57,7 +57,11 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   create(t: T) {
     if (this.isOnline()) {
       return this.api.remote
-        .post<T>(this.API_URL, this.forCreate(t, 'online'), this.withDefaultHeaders())
+        .post<T>(
+          this.API_URL,
+          this.forCreate(t, 'online'),
+          this.withDefaultHeaders()
+        )
         .pipe(tap(x => this.setLocal(x.body)))
     } else {
       const entity = this.forCreate(t, 'offline') as T
@@ -82,7 +86,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   private forCreate(x: T | T[], status: 'online' | 'offline'): T | T[] {
-    if (!(x instanceof Array)) return !x.id ? { ...x, id: this.generateId(status) } : x
+    if (!(x instanceof Array))
+      return !x.id ? { ...x, id: this.generateId(status) } : x
     else {
       if (!x.every(x => x?.id)) {
         x = x.map(x => {
@@ -191,7 +196,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     return this.api.remote
       .get<T>(`${this.API_URL}/${id}`, this.withDefaultHeaders())
       .pipe(
-        flatMap(x => (x.body ? of(x) : this.getLocal(id))),
+        mergeMap(x => (x.body ? of(x) : this.getLocal(id))),
         tap(x => this.setLocal(x.body))
       )
   }
@@ -208,7 +213,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         this.withDefaultHeaders()
       )
       .pipe(
-        flatMap(pr =>
+        mergeMap(pr =>
           this.combineMany(of(this.responseMany(pr.body.payload))).pipe(
             map(x =>
               this.paginate(x, pr.body.totalRecords, pr.body.currentPage)
@@ -261,7 +266,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
   private getLocal<Key extends Id>(key: Key): Observable<HttpResponse<T>> {
     return from(this.api.local.get(`${this.API_URL}/${key}`)).pipe(
-      flatMap(x => this.response(JSON.parse(x)))
+      mergeMap(x => this.response(JSON.parse(x)))
     )
   }
 
