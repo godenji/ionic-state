@@ -1,4 +1,4 @@
-import { Observable, BehaviorSubject } from 'rxjs'
+import { Observable, BehaviorSubject, take } from 'rxjs'
 
 export class StatusService {
   loading$: BehaviorSubject<boolean> = new BehaviorSubject(false)
@@ -12,9 +12,9 @@ export class StatusService {
    * observables have completed
    */
   setLoaded(loading: Observable<boolean[]>) {
-    loading.subscribe(bools => {
-      const loaded = bools.every(x => !x)
-      this.setLoading(!loaded)
+    loading.pipe(take(1)).subscribe(bools => {
+      const loaded = bools?.every(x => Boolean(x))
+      this.setLoading(loaded)
     })
   }
 }
