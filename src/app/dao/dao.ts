@@ -202,6 +202,10 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   findAll(q?: QueryParams) {
+    return this._findAll(this.API_URL, q)
+  }
+
+  protected _findAll(url: string, q?: QueryParams) {
     if (!this.isOnline()) {
       return this.getManyLocal().pipe(map(x => this.paginate(x)))
     }
@@ -209,7 +213,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     if (qs != '') qs = `?${qs}`
     return this.api.remote
       .get<PaginatedResult<T>>(
-        `${this.API_URL}${qs}`,
+        `${url}${qs}`,
         this.withDefaultHeaders()
       )
       .pipe(
