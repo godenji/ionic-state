@@ -14,12 +14,13 @@
     "declaration": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "importHelpers": true,
     "moduleResolution": "node",
-    "module": "es2020",
-    "target": "es2019",
+    "module": "esnext",
+    "target": "esnext",
     "lib": [
-      "es2019",
+      "esnext",
       "dom"
     ],
     "typeRoots": [
