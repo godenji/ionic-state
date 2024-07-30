@@ -10,7 +10,7 @@ import { QueryParams } from '../util/query-params'
 import { PaginatedResult } from '../util/paginated-result'
 
 export abstract class EntityStore<T extends Entity, Key extends Id> {
-  protected store: Store<any>
+  protected abstract store: Store<any>
 
   loading$: Observable<boolean>
   loaded$: Observable<boolean>

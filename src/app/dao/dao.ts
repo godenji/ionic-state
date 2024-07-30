@@ -49,7 +49,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     observe: 'response'
   } {
     return {
-      headers: this.api.token ? { 'X-Auth-Token': this.api.token } : null,
+      headers: this.api.token ? { 'X-Auth-Token': this.api.token } : undefined,
       observe: 'response'
     }
   }

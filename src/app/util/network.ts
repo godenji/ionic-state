@@ -6,7 +6,7 @@ import { Network } from '@capacitor/network'
 export class NetworkService {
   isNative: boolean
 
-  private _connected: boolean
+  private _connected = false
 
   constructor(private platform: Platform) {
     this.isNative = this.platform.is('hybrid')

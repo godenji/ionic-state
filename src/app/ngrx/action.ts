@@ -5,7 +5,7 @@ import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 
 export abstract class NgrxAction<T = any> implements Action {
-  readonly type: string
+  abstract readonly type: string
   constructor(public payload?: T) {}
 }
 
