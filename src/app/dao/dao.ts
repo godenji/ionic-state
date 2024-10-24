@@ -241,8 +241,11 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     })
   }
 
-  storeManyLocal(payload: Observable<HttpResponse<T[]>>) {
-    const combined = combineLatest([payload, this.getManyLocal()])
+  storeManyLocal(payload: T[] | Observable<HttpResponse<T[]>>) {
+    const p = payload instanceof Array
+      ? of(this.toHttpResponseMany(payload))
+      : payload
+    const combined = combineLatest([p, this.getManyLocal()])
     return combined.pipe(
       map(x =>
         x.reduce((a, b) => {
