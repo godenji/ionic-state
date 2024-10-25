@@ -33,7 +33,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   protected isOnline() {
-    return this.network.connected
+    return this.network.connected && !this.network.isOfflineMode
   }
 
   toHttpResponse(t: T) {
