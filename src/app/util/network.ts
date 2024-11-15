@@ -1,14 +1,25 @@
 import { Injectable } from '@angular/core'
 import { Platform } from '@ionic/angular'
 import { Network } from '@capacitor/network'
-import { BehaviorSubject, Observable } from 'rxjs'
+import { BehaviorSubject, Observable, pipe, map } from 'rxjs'
+
+type OfflineProps = { enabled: boolean, withQueue: boolean }
 
 @Injectable({ providedIn: 'root' })
 export class NetworkService {
   isNative: boolean
 
+  private _offline = { enabled: false, withQueue: true }
   private _connected = false
   private _connected$ = new BehaviorSubject<boolean>(null)
+
+  get offline(): OfflineProps {
+    return this._offline
+  }
+
+  set offline(x: OfflineProps) {
+    this._offline = x
+  }
 
   private set connected(x: boolean) {
     this._connected = x
@@ -16,11 +27,13 @@ export class NetworkService {
   }
 
   get connected(): boolean {
-    return this._connected
+    return this._connected && !this.offline.enabled
   }
 
   get connected$(): Observable<boolean> {
-    return this._connected$.asObservable()
+    return this._connected$.asObservable().pipe(
+      map(x => x && !this.offline.enabled)
+    )
   }
 
   constructor(private platform: Platform) {

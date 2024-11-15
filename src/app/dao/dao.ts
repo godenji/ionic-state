@@ -108,7 +108,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         })
       }
     }
-    if (status == 'offline') this.batch.add(x, { key: this.apiTarget, action: 'add' })
+    if (status == 'offline' && this.network.offline.withQueue) {
+      this.batch.add(x, { key: this.apiTarget, action: 'add' })
+    }
     return x
   }
 
@@ -141,7 +143,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         .pipe(tap(x => this.setLocal(x.body)))
     } else {
       this.setLocal(t)
-      this.batch.add(t, { key: this.apiTarget, action: 'update' })
+      if (this.network.offline.withQueue) {
+        this.batch.add(t, { key: this.apiTarget, action: 'update' })
+      }
       return this.toHttpResponse(t)
     }
   }
@@ -153,7 +157,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         .pipe(tap(x => this.updateManyLocal(x.body)))
     } else {
       this.updateManyLocal(xs)
-      this.batch.add(xs, { key: this.apiTarget, action: 'update' })
+      if (this.network.offline.withQueue) {
+        this.batch.add(xs, { key: this.apiTarget, action: 'update' })
+      }
       return of(new HttpResponse({ body: xs, status: 200 }))
     }
   }
@@ -209,27 +215,29 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   private handleOfflineDelete(t: T | T[]) {
-    const isNumeric = ['int', 'long'].includes(this.keyType)
-    if (isNumeric) {
-      // add-entity operation occurred offline if id > maxUnsignedInt
-      const f = (x: T) => (x.id as number) > maxUnsignedInt
-      const isArray = Array.isArray(t)
+    if (this.network.offline.withQueue) {
+      const isNumeric = ['int', 'long'].includes(this.keyType)
+      if (isNumeric) {
+        // add-entity operation occurred offline if id > maxUnsignedInt
+        const f = (x: T) => (x.id as number) > maxUnsignedInt
+        const isArray = Array.isArray(t)
 
-      let xs: T[] = []
-      if (isArray) xs = t.filter(f)
-      else if (f(t)) xs = [t]
+        let xs: T[] = []
+        if (isArray) xs = t.filter(f)
+        else if (f(t)) xs = [t]
 
-      if (xs.length) {
-        // remove from queue (no corresponding remote entities to delete)
-        this.batch.remove(xs, this.apiTarget)
-        if (isArray) {
-          const excludeIds = xs.map(x => x.id)
-          // enqueue entities to delete that already exist on api server
-          const ts = t.filter(x => !(excludeIds.includes(x.id)))
-          if (ts.length) this.batch.add(ts, {key: this.apiTarget, action: 'delete'})
+        if (xs.length) {
+          // remove from queue (no corresponding remote entities to delete)
+          this.batch.remove(xs, this.apiTarget)
+          if (isArray) {
+            const excludeIds = xs.map(x => x.id)
+            // enqueue entities to delete that already exist on api server
+            const ts = t.filter(x => !(excludeIds.includes(x.id)))
+            if (ts.length) this.batch.add(ts, {key: this.apiTarget, action: 'delete'})
+          }
         }
+        else this.batch.add(t, {key: this.apiTarget, action: 'delete'})
       }
-      else this.batch.add(t, {key: this.apiTarget, action: 'delete'})
     }
   }
 
