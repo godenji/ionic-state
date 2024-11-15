@@ -1,5 +1,6 @@
 import { StorageApi } from '../util/storage-api'
 import { HttpResponse } from '@angular/common/http'
+import { inject } from '@angular/core'
 import { NetworkService } from '../util/network'
 import { combineLatest, Observable, of, from } from 'rxjs'
 import { map, mergeMap, tap, take } from 'rxjs/operators'
@@ -10,9 +11,12 @@ import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 import { QueryString } from '../util/query-string'
 import { PaginatedResult } from '../util/paginated-result'
+import { OfflineQueue } from '../util/offline-queue'
 import { v4 as uuid } from 'uuid'
 
 export type KeyType = 'uuid' | 'int' | 'long'
+
+export const maxUnsignedInt = 4294967295
 
 export abstract class Dao<T extends Entity> implements DaoContract<T> {
   baseApiUrl: string
@@ -23,6 +27,11 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
   private qs = new QueryString()
 
+  /* batch of offline operations for client to sync with API server */
+  private batch: OfflineQueue
+
+  private apiTarget: string
+
   constructor(
     protected api: StorageApi,
     protected network: NetworkService,
@@ -30,10 +39,12 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   ) {
     this.baseApiUrl = api.environment.url
     this.API_URL = `${this.baseApiUrl}/${apiPath}`
+    this.apiTarget = apiPath
+    this.batch = inject(OfflineQueue)
   }
 
   protected isOnline() {
-    return this.network.connected && !this.network.isOfflineMode
+    return this.network.connected
   }
 
   toHttpResponse(t: T) {
@@ -86,17 +97,19 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   }
 
   private forCreate(x: T | T[], status: 'online' | 'offline'): T | T[] {
-    if (!(x instanceof Array))
-      return !x.id ? { ...x, id: this.generateId(status) } : x
+    if (!(x instanceof Array)) {
+      x = !x.id ? { ...x, id: this.generateId(status) } : x
+    }
     else {
       if (!x.every(x => x?.id)) {
-        x = x.map(x => {
-          if (!x?.id) x.id = this.generateId(status)
-          return x
+        x = x.map(t => {
+          if (!t?.id) t.id = this.generateId(status)
+          return t
         })
       }
-      return x
     }
+    if (status == 'offline') this.batch.add(x, { key: this.apiTarget, action: 'add' })
+    return x
   }
 
   // generates entity id
@@ -108,11 +121,11 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         if (status === 'online') return 0
 
         let n = 0
-        // require n > max unsigned int 2^32
-        // why? remote database column `int` value can be no greater than 2^32,
-        // while chance of collision with offline generated ids is extremely small
-        // (e.g. if # of generated ids = 100k collision probability is .0001%)
-        while (n < 4294967295) {
+        // require n > 2^32 (i.e. max unsigned int database column value)
+        // when persisted to API server the client should replace `n` with sequence id
+        // returned from the server and ngrx update state accordingly (see EntityReducer
+        // `updatedMany`)
+        while (n < maxUnsignedInt) {
           n = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
         }
         return n
@@ -128,6 +141,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         .pipe(tap(x => this.setLocal(x.body)))
     } else {
       this.setLocal(t)
+      this.batch.add(t, { key: this.apiTarget, action: 'update' })
       return this.toHttpResponse(t)
     }
   }
@@ -136,14 +150,15 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     if (this.isOnline()) {
       return this.api.remote
         .patch<PatchUpdate[]>(this.API_URL, xs, this.withDefaultHeaders())
-        .pipe(tap(x => this.patchLocal(x.body)))
+        .pipe(tap(x => this.updateManyLocal(x.body)))
     } else {
-      this.patchLocal(xs)
+      this.updateManyLocal(xs)
+      this.batch.add(xs, { key: this.apiTarget, action: 'update' })
       return of(new HttpResponse({ body: xs, status: 200 }))
     }
   }
 
-  private patchLocal(batch: PatchUpdate[]) {
+  private updateManyLocal(batch: PatchUpdate[]) {
     const updated$ = this.getManyLocal().pipe(
       map(x => {
         let entities: T[] = []
@@ -170,6 +185,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         .pipe(tap(x => this.unsetLocal(x.body)))
     } else {
       this.unsetLocal(t)
+      this.handleOfflineDelete(t)
       return this.toHttpResponse(t)
     }
   }
@@ -187,7 +203,33 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         )
     } else {
       this.unsetLocal(xs)
+      this.handleOfflineDelete(xs)
       return of(this.toHttpResponseMany(xs))
+    }
+  }
+
+  private handleOfflineDelete(t: T | T[]) {
+    const isNumeric = ['int', 'long'].includes(this.keyType)
+    if (isNumeric) {
+      // add-entity operation occurred offline if id > maxUnsignedInt
+      const f = (x: T) => (x.id as number) > maxUnsignedInt
+      const isArray = Array.isArray(t)
+
+      let xs: T[] = []
+      if (isArray) xs = t.filter(f)
+      else if (f(t)) xs = [t]
+
+      if (xs.length) {
+        // remove from queue (no corresponding remote entities to delete)
+        this.batch.remove(xs, this.apiTarget)
+        if (isArray) {
+          const excludeIds = xs.map(x => x.id)
+          // enqueue entities to delete that already exist on api server
+          const ts = t.filter(x => !(excludeIds.includes(x.id)))
+          if (ts.length) this.batch.add(ts, {key: this.apiTarget, action: 'delete'})
+        }
+      }
+      else this.batch.add(t, {key: this.apiTarget, action: 'delete'})
     }
   }
 
@@ -300,7 +342,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     })
   }
 
-  private unsetLocal(t: T | T[]): void {
+  unsetLocal(t: T | T[]): void {
     const remove = (x: T) => this.api.local.remove(`${this.API_URL}/${x.id}`)
     let ids: Id[] = []
     if (t instanceof Array) {
