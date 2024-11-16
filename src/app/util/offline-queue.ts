@@ -8,7 +8,7 @@ export type Action = 'add' | 'update' | 'delete'
 export type EntityWithAction = { entity: Entity, action: Action }
 export type Queue = { [key: string]: EntityWithAction[] }
 
-const storageKey = 'offline_queue'
+export const storageKey = 'offline_queue'
 
 @Injectable({ providedIn: 'root' })
 /**
