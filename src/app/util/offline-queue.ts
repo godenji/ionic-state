@@ -4,9 +4,9 @@ import { BehaviorSubject, Observable, from, take } from 'rxjs'
 import { Entity } from '../model/entity'
 import { Id } from '../model/key/id'
 
-type Action = 'add' | 'update' | 'delete'
-type EntityWithAction = { entity: Entity, action: Action }
-type Queue = { [key: string]: EntityWithAction[] }
+export type Action = 'add' | 'update' | 'delete'
+export type EntityWithAction = { entity: Entity, action: Action }
+export type Queue = { [key: string]: EntityWithAction[] }
 
 const storageKey = 'offline_queue'
 
