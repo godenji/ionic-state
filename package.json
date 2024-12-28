@@ -62,10 +62,10 @@
     "zone.js": "0.15.0"
   },
   "peerDependencies": {
-    "@angular/common": "19.0.6",
-    "@angular/core": "19.0.6",
-    "@angular/forms": "19.0.6",
-    "@angular/router": "19.0.6",
+    "@angular/common": "19.0.5",
+    "@angular/core": "19.0.5",
+    "@angular/forms": "19.0.5",
+    "@angular/router": "19.0.5",
     "@capacitor/network": "6.0.3",
     "@ionic/angular": "8.4.1",
     "@ionic/storage-angular": "4.0.0",
