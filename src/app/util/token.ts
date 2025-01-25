@@ -8,13 +8,14 @@ export class TokenService {
 
   token$: BehaviorSubject<string> = new BehaviorSubject(null)
 
-  constructor(private local: Storage) {
+  constructor(private storage: Storage) {
+    this.storage.create()
     this.get('auth')
     this.token$.subscribe(x => this._token = x)
   }
 
   private get(key: string): void {
-    this.local
+    this.storage
       .get(key)
       .then(x =>
         this.token$.next(x ? JSON.parse(x)?.token : null)
@@ -22,7 +23,7 @@ export class TokenService {
   }
 
   set(key: string, token: string): Promise<void> {
-    return this.local
+    return this.storage
       .set(key, JSON.stringify({ token }))
       .then(_ => this.token$.next(token))
   }
