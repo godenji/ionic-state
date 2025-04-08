@@ -114,8 +114,8 @@ export class EntityReducer<
   }
 
   updated(payload: T) {
-    return this.adapter.updateOne(
-      { id: `${payload.id}`, changes: payload },
+    return this.adapter.setOne(
+      payload,
       {
         ...this.state,
         ...this.getDefaultState(),
