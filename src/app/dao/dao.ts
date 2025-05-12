@@ -171,7 +171,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         let entities: T[] = []
         x.body.forEach(x => {
           const p = batch.find(p => p.id === x.id)
-          entities.push(!p ? x : p)
+          if (p) entities.push(p)
         })
         return entities
       })
