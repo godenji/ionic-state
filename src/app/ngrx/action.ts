@@ -1,7 +1,6 @@
 import { Action } from '@ngrx/store'
 import { Entity } from '../model/entity'
 import { Id } from '../model/key/id'
-import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 
 export abstract class NgrxAction<T = any> implements Action {
@@ -16,7 +15,7 @@ export interface EntityActions<T extends Entity, Key extends Id> {
   create(t: T): NgrxAction<T>
   createMany(t: T[]): NgrxAction<T[]>
   update(t: T): NgrxAction<T>
-  updateMany(t: PatchUpdate[]): NgrxAction<PatchUpdate[]>
+  updateMany(t: T[]): NgrxAction<T[]>
   delete(t: T): NgrxAction<T>
   deleteMany(t: T[]): NgrxAction<T[]>
 }

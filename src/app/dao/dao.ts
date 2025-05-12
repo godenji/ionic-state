@@ -7,7 +7,6 @@ import { map, mergeMap, tap, take } from 'rxjs/operators'
 import { DaoContract } from './dao-contract'
 import { Id } from '../model/key/id'
 import { Entity } from '../model/entity'
-import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 import { QueryString } from '../util/query-string'
 import { PaginatedResult } from '../util/paginated-result'
@@ -87,7 +86,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     if (this.isOnline())
       return this.storeManyLocal(
         this.api.remote.post<T[]>(
-          `${this.API_URL}/many`,
+          this.API_URL,
           this.forCreate(xs, 'online'),
           this.withDefaultHeaders()
         )
@@ -152,10 +151,10 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
   }
 
-  updateMany(xs: PatchUpdate[]) {
+  updateMany(xs: T[]) {
     if (this.isOnline()) {
       return this.api.remote
-        .patch<PatchUpdate[]>(this.API_URL, xs, this.withDefaultHeaders())
+        .put<T[]>(this.API_URL, xs, this.withDefaultHeaders())
         .pipe(tap(x => this.updateManyLocal(x.body)))
     } else {
       this.updateManyLocal(xs)
@@ -166,13 +165,13 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
   }
 
-  private updateManyLocal(batch: PatchUpdate[]) {
+  private updateManyLocal(batch: T[]) {
     const updated$ = this.getManyLocal().pipe(
       map(x => {
         let entities: T[] = []
         x.body.forEach(x => {
           const p = batch.find(p => p.id === x.id)
-          entities.push(!p ? x : { ...x, ...p.params })
+          entities.push(!p ? x : p)
         })
         return entities
       })

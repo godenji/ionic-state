@@ -5,7 +5,6 @@ import { Entity } from '../model/entity'
 import { EntityState } from './state'
 import { EntityActions } from './action'
 import { Id } from '../model/key/id'
-import { PatchUpdate } from '../model/patch-update'
 import { QueryParams } from '../util/query-params'
 import { PaginatedResult } from '../util/paginated-result'
 
@@ -120,7 +119,7 @@ export abstract class EntityStore<T extends Entity, Key extends Id> {
     this.dispatch(this.entity.update(x))
   }
 
-  updateMany(xs: PatchUpdate[]) {
+  updateMany(xs: T[]) {
     this.dispatch(this.entity.updateMany(xs))
   }
 
