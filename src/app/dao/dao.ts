@@ -75,7 +75,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
           this.withDefaultHeaders()
         )
         .pipe(tap(x => this.setLocal(x.body)))
-    } else {
+    }
+    else {
       const entity = this.forCreate(t, 'offline') as T
       this.setLocal(entity)
       return this.toHttpResponse(entity)
@@ -142,7 +143,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       return this.api.remote
         .put<T>(`${this.API_URL}/${t.id}`, t, this.withDefaultHeaders())
         .pipe(tap(x => this.setLocal(x.body)))
-    } else {
+    }
+    else {
       this.setLocal(t)
       if (this.network.offline.withQueue) {
         this.batch.add(t, { key: this.apiTarget, action: 'update' })
@@ -153,35 +155,18 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
   updateMany(xs: T[]) {
     if (this.isOnline()) {
-      return this.api.remote
-        .put<T[]>(this.API_URL, xs, this.withDefaultHeaders())
-        .pipe(tap(x => this.updateManyLocal(x.body)))
-    } else {
-      this.updateManyLocal(xs)
+      return this.storeManyLocal(
+        this.api.remote.put<T[]>(this.API_URL, xs, this.withDefaultHeaders())
+      )
+    }
+    else {
       if (this.network.offline.withQueue) {
         this.batch.add(xs, { key: this.apiTarget, action: 'update' })
       }
-      return of(new HttpResponse({ body: xs, status: 200 }))
+      return this.storeManyLocal(
+        of(this.toHttpResponseMany(xs))
+      )
     }
-  }
-
-  private updateManyLocal(batch: T[]) {
-    const updated$ = this.getManyLocal().pipe(
-      map(x => {
-        let entities: T[] = []
-        x.body.forEach(x => {
-          const p = batch.find(p => p.id === x.id)
-          if (p) entities.push(p)
-        })
-        return entities
-      })
-    )
-    updated$.pipe(take(1)).subscribe(xs => {
-      if (xs.length) {
-        xs.forEach(x => this.setLocal(x, false))
-        this.api.local.set(this.API_URL, JSON.stringify(xs))
-      }
-    })
   }
 
   delete(t: T) {
@@ -190,7 +175,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       return this.api.remote
         .delete<T>(`${this.API_URL}/${t.id}`, options)
         .pipe(tap(x => this.unsetLocal(x.body)))
-    } else {
+    }
+    else {
       this.unsetLocal(t)
       this.handleOfflineDelete(t)
       return this.toHttpResponse(t)
@@ -208,7 +194,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
           tap(_ => this.unsetLocal(xs)),
           map(_ => this.toHttpResponseMany(xs))
         )
-    } else {
+    }
+    else {
       this.unsetLocal(xs)
       this.handleOfflineDelete(xs)
       return of(this.toHttpResponseMany(xs))
@@ -298,8 +285,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       : payload
     const combined = combineLatest([p, this.getManyLocal()])
     return combined.pipe(
-      map(x =>
-        x.reduce((a, b) => {
+      map(xs =>
+        xs.reduce((a, b) => {
           const [remote, local] = [a.body || [], b.body || []]
           const ids = remote.map(x => x.id)
           const data = remote.concat(local.filter(x => !ids.includes(x.id)))
@@ -309,7 +296,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       tap(x => {
         this.api.local.set(this.API_URL, JSON.stringify(x.body))
         x.body.forEach(x => this.setLocal(x, false))
-      })
+      }),
+      mergeMap(_ => p)
     )
   }
 
