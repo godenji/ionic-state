@@ -2,6 +2,7 @@ import { EntityAdapter } from '@ngrx/entity'
 import { EntityState, defaultState } from './state'
 import { Entity } from '../model/entity'
 import { Id } from '../model/key/id'
+import { PatchUpdate } from '../model/patch-update'
 import { PaginatedResult } from '../util/paginated-result'
 
 export class EntityReducer<
@@ -129,6 +130,40 @@ export class EntityReducer<
     if (!payload.length) return this.state
     return this.adapter.setMany(
       payload,
+      {
+        ...this.state,
+        ...this.getDefaultState(),
+        isUpdated: true
+      }
+    )
+  }
+
+  patchedMany(payload: PatchUpdate[]) {
+    const f = (entity: T) =>
+      payload.find(p => p.id === entity.id)
+
+    let entities: T[] = []
+    this.adapter
+      .getSelectors()
+      .selectAll(this.state)
+      .forEach(x => {
+        const p = f(x)
+        if (p) {
+          // discard id param if exists (i.e. perform update based on existing entity id)
+          const { id, ...rest } = p.params
+          entities.push({ ...x, ...rest })
+        }
+      })
+
+    if (!entities.length) return this.state
+    return this.adapter.updateMany(
+      entities.map(x => {
+        const p = f(x)
+        const { id, ...rest } = p.params
+        // include id param in changeset if exists (i.e. to update the entity id itself)
+        const changes = id ? { ...x, id } : { ...x }
+        return { id: `${x.id}`, changes }
+      }),
       {
         ...this.state,
         ...this.getDefaultState(),
