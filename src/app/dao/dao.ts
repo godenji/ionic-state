@@ -85,12 +85,13 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
   createMany(xs: T[]) {
     if (this.isOnline())
-      return this.storeManyLocal(
-        this.api.remote.post<T[]>(
+      return this.api.remote
+        .post<T[]>(
           this.API_URL,
           this.forCreate(xs, 'online'),
           this.withDefaultHeaders()
         )
+        .pipe(mergeMap(xs => this.storeManyLocal(of(xs)))
       )
     else
       return this.storeManyLocal(
@@ -154,9 +155,11 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
   updateMany(xs: T[]) {
     if (this.isOnline()) {
-      return this.storeManyLocal(
-        this.api.remote.put<T[]>(this.API_URL, xs, this.withDefaultHeaders())
-      )
+      return this.api.remote
+        .put<T[]>(this.API_URL, xs, this.withDefaultHeaders())
+        .pipe(
+          mergeMap(xs => this.storeManyLocal(of(xs)))
+        )
     }
     else {
       if (this.network.offline.withQueue) {
@@ -283,7 +286,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       payload instanceof Array
         ? of(this.toHttpResponseMany(payload))
         : payload
-    ).pipe(take(1))
+    )
 
     const combined = combineLatest([p, this.getManyLocal()])
     return combined.pipe(
