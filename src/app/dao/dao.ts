@@ -104,10 +104,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
     else {
       if (!x.every(x => x?.id)) {
-        x = x.map(t => {
-          if (!t?.id) t.id = this.generateId(status)
-          return t
-        })
+        x = x.map(t =>
+          !t?.id ? { ...t, id: this.generateId(status) } : t
+        )
       }
     }
     if (status == 'offline' && this.network.offline.withQueue) {
