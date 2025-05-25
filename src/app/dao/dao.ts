@@ -288,13 +288,32 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         : payload
     )
 
+    const compareMax = (id: Id) => {
+      switch (this.keyType) {
+        case 'int':
+        case 'long': return id as number > maxUnsignedInt
+        default:
+          // uuid string, default to true
+          return true
+      }
+    }
+
     const combined = combineLatest([p, this.getManyLocal()])
     return combined.pipe(
       map(xs =>
         xs.reduce((a, b) => {
           const [remote, local] = [a.body || [], b.body || []]
           const ids = remote.map(x => x.id)
-          const data = remote.concat(local.filter(x => !ids.includes(x.id)))
+          const data =
+            remote.concat(
+              local.filter(x =>
+                // only include local offline entities where max condition satisfied --
+                // remote api is the source of truth, the only local entities
+                // that should be preserved are those that were persisted offline (e.g.
+                // with a generated id > max value)
+                !ids.includes(x.id) && compareMax(x.id)
+              )
+            )
           return this.toHttpResponseMany(data)
         })
       ),
