@@ -153,12 +153,16 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     }
   }
 
-  updateMany(xs: T[]) {
+  updateAll(xs: T[]) {
+    return this.updateMany(xs, { forAll: true })
+  }
+
+  updateMany(xs: T[], o?: { forAll: boolean }) {
     if (this.isOnline()) {
       return this.api.remote
         .put<T[]>(this.API_URL, xs, this.withDefaultHeaders())
         .pipe(
-          mergeMap(xs => this.storeManyLocal(of(xs)))
+          mergeMap(xs => this.storeManyLocal(of(xs), o))
         )
     }
     else {
@@ -281,14 +285,17 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     })
   }
 
-  storeManyLocal(payload: T[] | Observable<HttpResponse<T[]>>) {
+  storeManyLocal(
+    payload: T[] | Observable<HttpResponse<T[]>>,
+    o?: { forAll: boolean }
+  ) {
     const p = (
       payload instanceof Array
         ? of(this.toHttpResponseMany(payload))
         : payload
     )
 
-    const compareMax = (id: Id) => {
+    const isMax = (id: Id) => {
       switch (this.keyType) {
         case 'int':
         case 'long': return id as number > maxUnsignedInt
@@ -300,26 +307,26 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
 
     const combined = combineLatest([p, this.getManyLocal()])
     return combined.pipe(
-      map(xs =>
-        xs.reduce((a, b) => {
-          const [remote, local] = [a.body || [], b.body || []]
-          const ids = remote.map(x => x.id)
-          const data =
-            remote.concat(
-              local.filter(x =>
-                // only include local offline entities where max condition satisfied --
-                // remote api is the source of truth, the only local entities
-                // that should be preserved are those that were persisted offline (e.g.
-                // with a generated id > max value)
-                !ids.includes(x.id) && compareMax(x.id)
-              )
-            )
-          return this.toHttpResponseMany(data)
-        })
-      ),
+      map(([a, b]) => {
+        const [remote, local] = [a.body || [], b.body || []]
+        const ids = remote.map(x => x.id)
+        const offlineEntities = local.filter(x => !ids.includes(x.id))
+
+        // only include local offline entities where max condition satisfied --
+        // remote api is the source of truth, the only local entities
+        // that should be preserved are those that were persisted offline (e.g.
+        // with a generated id > max value)
+        const data = remote.concat(offlineEntities.filter(x => isMax(x.id)))
+        return {
+          request: this.toHttpResponseMany(data),
+          orphans:
+            o?.forAll ? offlineEntities.filter(x => !isMax(x.id)) : []
+        }
+      }),
       tap(x => {
-        this.api.local.set(this.API_URL, JSON.stringify(x.body))
-        x.body.forEach(x => this.setLocal(x, false))
+        this.api.local.set(this.API_URL, JSON.stringify(x.request.body))
+        x.request.body.forEach(x => this.setLocal(x, false))
+        x.orphans.forEach(x => this.unsetLocal(x, false))
       }),
       mergeMap(_ => p)
     )
@@ -363,7 +370,7 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     })
   }
 
-  unsetLocal(t: T | T[]): void {
+  unsetLocal(t: T | T[], withMany: boolean = true): void {
     const remove = (x: T) => this.api.local.remove(`${this.API_URL}/${x.id}`)
     let ids: Id[] = []
     if (t instanceof Array) {
@@ -373,17 +380,19 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       remove(t)
       ids = [t.id]
     }
-    this.getManyLocal()
-      .toPromise()
-      .then(x => {
-        if (x && x.body) {
-          // remove entities from local storage list collection
-          ids.forEach(id => {
-            const idx = x.body.findIndex(e => e.id === id)
-            idx > -1 ? x.body.splice(idx, 1) : ''
-          })
-          this.api.local.set(this.API_URL, JSON.stringify(x.body))
-        }
-      })
+    if (withMany) {
+      this.getManyLocal()
+        .toPromise()
+        .then(x => {
+          if (x && x.body) {
+            // remove entities from local storage list collection
+            ids.forEach(id => {
+              const idx = x.body.findIndex(e => e.id === id)
+              idx > -1 ? x.body.splice(idx, 1) : ''
+            })
+            this.api.local.set(this.API_URL, JSON.stringify(x.body))
+          }
+        })
+    }
   }
 }

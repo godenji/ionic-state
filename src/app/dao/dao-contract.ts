@@ -10,6 +10,7 @@ export interface DaoContract<T extends Entity> {
   createMany(xs: T[]): Observable<HttpResponse<T[]>>
   update(t: T): Observable<HttpResponse<T>>
   updateMany(xs: T[]): Observable<HttpResponse<T[]>>
+  updateAll(xs: T[]): Observable<HttpResponse<T[]>>
   delete(t: T): Observable<HttpResponse<T>>
   deleteMany(t: T[]): Observable<HttpResponse<T[]>>
   findById<Key extends Id>(id: Key): Observable<HttpResponse<T>>

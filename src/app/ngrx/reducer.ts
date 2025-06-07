@@ -126,9 +126,19 @@ export class EntityReducer<
     )
   }
 
-  updatedMany(payload: T[]) {
+  updatedAll(payload: T[]) {
+    return this.updatedMany(payload, { forAll: true })
+  }
+
+  updatedMany(payload: T[], o?: { forAll: boolean }) {
     if (!payload.length) return this.state
-    return this.adapter.setMany(
+
+    // if forAll true, replace entire target local state with payload
+    const f = o?.forAll ?
+      this.adapter.setAll.bind(this) :
+      this.adapter.setMany.bind(this)
+
+    return f(
       payload,
       {
         ...this.state,
