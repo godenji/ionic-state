@@ -24,22 +24,20 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
   /** define remote database entity column type (for offline id generation) */
   abstract keyType: KeyType
 
+  private storageWriteLock = Promise.resolve()
   private qs = new QueryString()
-
-  /* batch of offline operations for client to sync with API server */
-  private batch: OfflineQueue
 
   private apiTarget: string
 
   constructor(
     protected api: StorageApi,
     protected network: NetworkService,
+    protected batch: OfflineQueue,
     apiPath: string
   ) {
     this.baseApiUrl = api.environment.url
     this.API_URL = `${this.baseApiUrl}/${apiPath}`
     this.apiTarget = apiPath
-    this.batch = inject(OfflineQueue)
   }
 
   protected isOnline() {
@@ -74,12 +72,17 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
           this.forCreate(t, 'online'),
           this.withDefaultHeaders()
         )
-        .pipe(tap(x => this.setLocal(x.body)))
+        .pipe(
+          mergeMap(x =>
+            from(this.setLocal(x.body)).pipe(map(_ => x))
+          )
+        )
     }
     else {
       const entity = this.forCreate(t, 'offline') as T
-      this.setLocal(entity)
-      return this.toHttpResponse(entity)
+      return from(this.setLocal(entity)).pipe(
+        mergeMap(_ => this.toHttpResponse(entity))
+      )
     }
   }
 
@@ -91,7 +94,9 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
           this.forCreate(xs, 'online'),
           this.withDefaultHeaders()
         )
-        .pipe(mergeMap(xs => this.storeManyLocal(of(xs)))
+        .pipe(
+          mergeMap(xs => this.storeManyLocal(of(xs))
+        )
       )
     else
       return this.storeManyLocal(
@@ -124,15 +129,13 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       case 'int':
         if (status === 'online') return 0
 
-        let n = 0
         // require n > 2^32 (i.e. max unsigned int database column value)
         // when persisted to API server the client should replace `n` with sequence id
         // returned from the server and ngrx update state accordingly (see EntityReducer
         // `updatedMany`)
-        while (n < maxUnsignedInt) {
-          n = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
-        }
-        return n
+        const min = maxUnsignedInt + 1
+        const max = Number.MAX_SAFE_INTEGER
+        return Math.floor(Math.random() * (max - min + 1)) + min
       case 'long':
         return status === 'online' ? 0 : BigInt(Math.pow(2, 63) * Math.random())
     }
@@ -142,14 +145,20 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     if (this.isOnline()) {
       return this.api.remote
         .put<T>(`${this.API_URL}/${t.id}`, t, this.withDefaultHeaders())
-        .pipe(tap(x => this.setLocal(x.body)))
+        .pipe(
+          mergeMap(x =>
+            from(this.setLocal(x.body)).pipe(map(_ => x))
+          )
+        )
     }
     else {
-      this.setLocal(t)
       if (this.network.offline.withQueue) {
         this.batch.add(t, { key: this.apiTarget, action: 'update' })
       }
-      return this.toHttpResponse(t)
+      return from(
+        this.setLocal(t)).pipe(
+          mergeMap(_ => this.toHttpResponse(t))
+        )
     }
   }
 
@@ -180,38 +189,53 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
       const options = { ...this.withDefaultHeaders(), body: t }
       return this.api.remote
         .delete<T>(`${this.API_URL}/${t.id}`, options)
-        .pipe(tap(x => this.unsetLocal(x.body)))
+        .pipe(
+          mergeMap(x =>
+            from(this.unsetLocal(x.body)).pipe(map(_ => x))
+          )
+        )
     }
     else {
-      this.unsetLocal(t)
       this.handleOfflineDelete(t)
-      return this.toHttpResponse(t)
+      return from(
+        this.unsetLocal(t)).pipe(
+          mergeMap(_ => this.toHttpResponse(t)
+        )
+      )
     }
   }
 
   deleteMany(xs: T[]) {
     if (this.isOnline()) {
       const key = Entity.key
-      // generate querystring key list: "foo?id=..&id=..&id=.."
       const qstring = `?${key}=` + xs.map(x => x.id).join(`&${key}=`)
       return this.api.remote
         .delete<T[]>(`${this.API_URL}${qstring}`, this.withDefaultHeaders())
         .pipe(
-          tap(_ => this.unsetLocal(xs)),
-          map(_ => this.toHttpResponseMany(xs))
+          mergeMap(_ =>
+            from(this.unsetLocal(xs)).pipe(
+              map(_ => this.toHttpResponseMany(xs))
+            )
+          )
         )
     }
     else {
-      this.unsetLocal(xs)
       this.handleOfflineDelete(xs)
-      return of(this.toHttpResponseMany(xs))
+      return from(this.unsetLocal(xs)).pipe(
+        mergeMap(_ => of(this.toHttpResponseMany(xs)))
+      )
     }
   }
 
   private handleOfflineDelete(t: T | T[]) {
     if (this.network.offline.withQueue) {
       const isNumeric = ['int', 'long'].includes(this.keyType)
-      if (isNumeric) {
+
+      // string/uuid key
+      if (!isNumeric) this.batch.add(t, {key: this.apiTarget, action: 'delete'})
+      //
+      // numeric
+      else {
         // add-entity operation occurred offline if id > maxUnsignedInt
         const f = (x: T) => (x.id as number) > maxUnsignedInt
         const isArray = Array.isArray(t)
@@ -220,7 +244,8 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         if (isArray) xs = t.filter(f)
         else if (f(t)) xs = [t]
 
-        if (xs.length) {
+        if (!xs.length) this.batch.add(t, {key: this.apiTarget, action: 'delete'})
+        else {
           // remove from queue (no corresponding remote entities to delete)
           this.batch.remove(xs, this.apiTarget)
           if (isArray) {
@@ -230,7 +255,6 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
             if (ts.length) this.batch.add(ts, {key: this.apiTarget, action: 'delete'})
           }
         }
-        else this.batch.add(t, {key: this.apiTarget, action: 'delete'})
       }
     }
   }
@@ -312,19 +336,24 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
         const ids = remote.map(x => x.id)
         const offlineEntities = local.filter(x => !ids.includes(x.id))
 
-        // only include local offline entities where max condition satisfied --
-        // remote api is the source of truth, the only local entities
-        // that should be preserved are those that were persisted offline (e.g.
-        // with a generated id > max value)
-        const data = remote.concat(offlineEntities.filter(x => isMax(x.id)))
+        const [data, orphans] = o?.forAll ? [
+          // when forAll true, only include local offline entities where max condition
+          // satisfied -- remote api is the source of truth, the only local entities
+          // that should be preserved are those that were persisted offline (e.g.
+          // with a generated id > max value)
+          remote.concat(offlineEntities.filter(x => isMax(x.id))),
+          offlineEntities.filter(x => !isMax(x.id))
+        ] : [
+          remote.concat(offlineEntities),
+          []
+        ]
         return {
           request: this.toHttpResponseMany(data),
-          orphans:
-            o?.forAll ? offlineEntities.filter(x => !isMax(x.id)) : []
+          orphans
         }
       }),
       tap(x => {
-        this.api.local.set(this.API_URL, JSON.stringify(x.request.body))
+        from(this.api.local.set(this.API_URL, JSON.stringify(x.request.body)))
         x.request.body.forEach(x => this.setLocal(x, false))
         x.orphans.forEach(x => this.unsetLocal(x, false))
       }),
@@ -347,52 +376,47 @@ export abstract class Dao<T extends Entity> implements DaoContract<T> {
     )
   }
 
-  private setLocal(t: T, withMany: boolean = true): void {
-    this.api.local.set(`${this.API_URL}/${t.id}`, JSON.stringify(t)).then(_ => {
-      // add entity to local storage list collection
+  private async setLocal(t: T, withMany: boolean = true): Promise<void> {
+    await this.storageWriteLock
+    this.storageWriteLock = (async _ => {
+      await this.api.local.set(`${this.API_URL}/${t.id}`, JSON.stringify(t))
       if (withMany) {
-        this.getManyLocal()
-          .toPromise()
-          .then(x => {
-            if (x && x.body) {
-              let entities: T[]
-              const idx = x.body.findIndex(e => e.id === t.id)
-              if (idx === -1) entities = x.body.concat(t)
-              else {
-                // swap existing entity with latest version
-                x.body.splice(idx, 1, t)
-                entities = x.body
-              }
-              this.api.local.set(this.API_URL, JSON.stringify(entities))
-            }
-          })
+        const many = await this.getManyLocal().toPromise()
+        if (many && many.body) {
+          const entities = [...many.body]
+          const idx = entities.findIndex(e => e.id === t.id)
+          if (idx === -1) {
+            entities.push(t)
+          } else {
+            entities[idx] = t
+          }
+          await this.api.local.set(this.API_URL, JSON.stringify(entities))
+        }
       }
-    })
+    })()
+    return this.storageWriteLock
   }
 
-  unsetLocal(t: T | T[], withMany: boolean = true): void {
-    const remove = (x: T) => this.api.local.remove(`${this.API_URL}/${x.id}`)
-    let ids: Id[] = []
-    if (t instanceof Array) {
-      t.forEach(x => remove(x))
-      ids = t.map(x => x.id)
-    } else {
-      remove(t)
-      ids = [t.id]
-    }
-    if (withMany) {
-      this.getManyLocal()
-        .toPromise()
-        .then(x => {
-          if (x && x.body) {
-            // remove entities from local storage list collection
-            ids.forEach(id => {
-              const idx = x.body.findIndex(e => e.id === id)
-              idx > -1 ? x.body.splice(idx, 1) : ''
-            })
-            this.api.local.set(this.API_URL, JSON.stringify(x.body))
-          }
-        })
-    }
+  async unsetLocal(t: T | T[], withMany: boolean = true): Promise<void> {
+    await this.storageWriteLock
+    this.storageWriteLock = (async _ => {
+      const remove = (x: T) => this.api.local.remove(`${this.API_URL}/${x.id}`)
+      let ids: Id[] = []
+      if (t instanceof Array) {
+        await Promise.all(t.map(x => remove(x)))
+        ids = t.map(x => x.id)
+      } else {
+        await remove(t)
+        ids = [t.id]
+      }
+      if (withMany) {
+        const many = await this.getManyLocal().toPromise()
+        if (many && many.body) {
+          const entities = many.body.filter(e => !ids.includes(e.id))
+          await this.api.local.set(this.API_URL, JSON.stringify(entities))
+        }
+      }
+    })()
+    return this.storageWriteLock
   }
 }
