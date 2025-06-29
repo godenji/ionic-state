@@ -93,7 +93,8 @@ export class EntityReducer<
     return {
       ...this.state,
       ...this.getDefaultState(),
-      isAdded: true
+      isAdded: true,
+      totalRecords: this.totalRecords
     }
   }
 
@@ -240,8 +241,8 @@ export class EntityReducer<
   }
 
   private setTotalRecords(op: 'add' | 'minus', count: number): void {
-    const x = this.state.totalRecords
-    if (x) this.totalRecords = op === 'add' ? x + count : x - count
+    const x = this.state.totalRecords ?? 0
+    this.totalRecords = op === 'add' ? x + count : x - count
   }
 }
 
